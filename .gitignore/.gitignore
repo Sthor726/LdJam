@@ -1,0 +1,640 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class ButtonManager : MonoBehaviour {
+
+    public GameObject InstructionsPanel;
+
+    public void Play()
+    {
+        SceneManager.LoadScene(1);
+    }
+ 
+    public void Instructions()
+    {
+        InstructionsPanel.SetActive(true);
+    }
+
+    public void Quit()
+    {
+        Application.Quit();
+    }
+
+    public void Update()
+    {
+        if(Input.GetMouseButtonDown(0))
+        {
+            InstructionsPanel.SetActive(false);
+        }
+    }
+
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+[CreateAssetMenu(fileName = "New File", menuName = "File")]
+public class File : ScriptableObject {
+
+    public float health;
+
+    public float size;
+
+    public float speed;
+
+    public Sprite Icon;
+
+    
+
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class FileGameObject : MonoBehaviour {
+
+    public File file;
+
+    float currentHealth;
+
+
+	// Use this for initialization
+	void Start () {
+        currentHealth = file.health;
+        GetComponent<SpriteRenderer>().sprite = file.Icon;
+        currentHealth = file.health + GameManager.instance.Wave * 0.05f;
+    }
+	
+	// Update is called once per frame
+	void FixedUpdate() {
+
+        transform.Translate(Vector2.right * Time.deltaTime * file.speed);
+
+	}
+
+    public void OnTriggerEnter2D(Collider2D collision)
+    {
+        Debug.Log("Hit by " + collision);
+
+        if(collision.tag == "bullet")
+        {
+            GameManager.instance.EnemyKilled();
+            currentHealth -= Shoot.instance.damage;
+            Destroy(collision.gameObject);
+            StartCoroutine(HitEffect());
+        }
+    }
+
+    public void Update()
+    {
+
+        
+
+        if(transform.position.x > 9f)
+        {
+            GameManager.instance.currentGB += file.size;
+            Destroy(gameObject);
+        }
+
+        if(GameManager.instance.waveTimer <= 0 && GameManager.instance.EnemyGO.Length == 0)
+        {
+            Destroy(gameObject);
+        }
+
+        if(currentHealth <= 0)
+        {
+            GameManager.instance.points += file.size * 1 / 2 ;
+            
+            Destroy(this.gameObject);
+        }
+    }
+    public IEnumerator HitEffect ()
+    {
+        GetComponent<SpriteRenderer>().color = Color.red;
+        yield return new WaitForSeconds(0.1f);
+        GetComponent<SpriteRenderer>().color = Color.white;
+    }
+
+
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+
+public class GameManager : MonoBehaviour {
+
+    public static GameManager instance;
+
+    public void Awake()
+    {
+        instance = this;
+    }
+
+
+    public float points = 0;
+    public Text PointsText;
+
+    public Text WaveText;
+    public GameObject NextWaveButton;
+    public Text GBText;
+
+    public float maxGB = 32f;
+    public float currentGB = 0f;
+
+    public GameObject[] EnemyGO;
+
+    public float Wave = 1f;
+    public float maxWaveTimer = 10f;
+    public float waveTimer;
+
+    public float WavePower;
+
+    public float VirusAmount = 2f;
+    public GameObject VirusEffect;
+
+    public GameObject shopUI;
+
+    public Text VirusAmountText;
+
+   public bool Lost = false;
+    public GameObject FailedUI;
+
+    AudioSource au;
+
+
+    void Start () {
+        au = GetComponent<AudioSource>();
+        waveTimer = maxWaveTimer;
+        NextWaveButton.SetActive(false);
+        shopUI.SetActive(false);
+        VirusEffect.SetActive(false);
+	}
+	
+	// Update is called once per frame
+	void Update () {
+
+        VirusAmountText.text = VirusAmount.ToString();
+        PointsText.text = "Points: " + Mathf.Floor(points).ToString();
+
+        EnemyGO = GameObject.FindGameObjectsWithTag("Enemy");
+
+        
+
+        WaveText.text ="Wave " + Wave.ToString();
+
+        if(waveTimer <= 0 && EnemyGO.Length == 0 && Lost == false)
+        {
+            NextWaveButton.SetActive(true);
+        }
+        if(Lost == false)
+        {
+            waveTimer -= Time.deltaTime;
+        }
+        
+
+        GBText.text = currentGB.ToString() + " / " + maxGB.ToString() + " GB Remaining";
+
+        if (currentGB >= maxGB)
+        {
+            FailedUI.SetActive(true);
+           
+            Lost = true;
+        }
+    }
+
+    public void NextWaveUI ()
+    {
+        Wave += 1f;
+        WavePower = Wave * 0.6f;
+        SpawnEnemy.instance.maxSpawnCounter = Mathf.Pow(2f, -WavePower) + 1;
+        maxWaveTimer = maxWaveTimer += Wave * 0.25f;
+        waveTimer = maxWaveTimer;
+        NextWaveButton.SetActive(false);
+    }
+
+    public void Virus()
+    {
+        if(VirusAmount > 0)
+        {
+           for(int i = 0;i < EnemyGO.Length; i++)
+            {
+                Destroy(EnemyGO[i].gameObject);
+            }
+            StartCoroutine(VirusE());
+            VirusAmount -= 1f;
+        }
+    }
+
+    IEnumerator VirusE()
+    {
+        VirusEffect.SetActive(true);
+        yield return new WaitForSeconds(0.1f);
+        VirusEffect.SetActive(false);
+    }
+
+    public void Shop()
+    {
+        shopUI.SetActive(true);
+    }
+    public void CloseShop ()
+    {
+        shopUI.SetActive(false);
+    }
+
+
+    public void EndGame()
+    {
+        SceneManager.LoadScene(0);
+    }
+
+    public void EnemyKilled()
+    {
+        au.Play(0);
+    }
+
+
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class HomingMissile : MonoBehaviour {
+
+    public Transform target;
+
+    public float speed = 20f;
+    public float rotateSpeed = 400f;
+
+    private Rigidbody2D rb;
+
+	// Use this for initialization
+	void Start () {
+        rb = GetComponent<Rigidbody2D>();
+	}
+	
+	// Update is called once per frame
+	void Update () {
+        target = TaskManager.instance.targetTransform;
+        
+        
+	}
+
+    public void FixedUpdate()
+    {
+        Vector2 direction = (Vector2)target.position - rb.position;
+
+        direction.Normalize();
+
+        float rotateAmount = Vector3.Cross(direction, transform.up).z;
+
+        rb.angularVelocity = -rotateAmount * rotateSpeed;
+
+        rb.velocity = transform.up * speed;
+    }
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Player : MonoBehaviour {
+
+   
+
+	// Use this for initialization
+	void Start () {
+		
+	}
+	
+	// Update is called once per frame
+	void Update () {
+		
+	}
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Projectile : MonoBehaviour {
+
+    public float speed;
+    
+
+
+	// Use this for initialization
+	void Start () {
+        StartCoroutine(TimeTill()); 
+	}
+	
+	// Update is called once per frame
+	void Update () {
+
+        transform.Translate(Vector2.up * speed * Time.deltaTime);
+
+	}
+
+    public IEnumerator TimeTill ()
+    {
+        yield return new WaitForSeconds(5f);
+        Destroy(gameObject);
+    }
+
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Shoot : MonoBehaviour {
+
+    public static Shoot instance;
+
+    public void Awake()
+    {
+        instance = this;
+    }
+
+    public float damage;
+
+    float shootTimer;
+    public float maxShootTimer = 0.6f;
+
+    public GameObject projectile;
+    
+
+    public float offset;
+
+	// Use this for initialization
+	void Start () {
+		
+	}
+	
+	// Update is called once per frame
+	void Update () {
+
+        Vector3 difference = Camera.main.ScreenToWorldPoint(Input.mousePosition) - transform.position;
+        float rotZ = Mathf.Atan2(difference.y, difference.x) * Mathf.Rad2Deg;
+        transform.rotation = Quaternion.Euler(0f, 0f, rotZ + offset);
+
+
+        shootTimer -= Time.deltaTime;
+
+
+        if(Input.GetMouseButton(0))
+        {
+            if(shootTimer <= 0 && GameManager.instance.Lost == false)
+            {
+                Fire();
+            }
+        }
+
+
+	}
+
+    public void Fire()
+    {
+        Instantiate(projectile, transform.position, transform.rotation);
+        shootTimer = maxShootTimer;
+    }
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
+
+public class Shop : MonoBehaviour {
+
+    public float VirusCost = 100f;
+    public float UpgradeAmount = 50f;
+    public float TaskManagerAmount = 150f;
+    public float StorageCost = 300f;
+
+    public Text UpgradeText;
+    public Text TaskText;
+
+    public int TaskManagerVal = 0;
+    public GameObject[] TaskManagerGO;
+
+    AudioSource au;
+
+    public float PointerLv = 1f;
+
+    float Power;
+
+	// Use this for initialization
+	void Start () {
+
+        UpgradeText.text = "Upgrade Pointer (" + UpgradeAmount + " Points)";
+        TaskText.text = "Task Manager (" + TaskManagerAmount + " Points)";
+
+        au = GetComponent<AudioSource>();
+       /* for(int i = 0; i < TaskManagerGO.Length; ++i)
+        {
+            TaskManagerGO[i].SetActive(false);
+        }*/
+	}
+	
+	// Update is called once per frame
+	void Update () {
+        Power = -PointerLv - 2f;
+
+
+	}
+
+    public void BuyVirus()
+    {
+        if(GameManager.instance.points >= VirusCost)
+        {
+            au.Play(0);
+            GameManager.instance.VirusAmount += 1f;
+            GameManager.instance.points -= VirusCost;
+        }
+
+    }
+
+    public void UpgradePointer()
+    {
+        if (GameManager.instance.points >= UpgradeAmount)
+        {
+            au.Play(0);
+            PointerLv += 1f;
+            Shoot.instance.damage += Mathf.Pow(2, Power) + 0.1f;
+            GameManager.instance.points -= UpgradeAmount;
+            UpgradeAmount += 25f;
+            UpgradeText.text = "Upgrade Pointer (" + UpgradeAmount + " Points)";
+        }
+           
+    }
+
+    public void TaskManager()
+    {
+        if (GameManager.instance.points >= TaskManagerAmount && TaskManagerVal < 4)
+        {
+            au.Play(0);
+            TaskManagerGO[TaskManagerVal].SetActive(true);
+            GameManager.instance.points -= TaskManagerAmount;
+            TaskManagerAmount += 50f;
+            TaskManagerVal += 1;
+            TaskText.text = "Task Manager (" + TaskManagerAmount + " Points)";
+        }
+
+    }
+
+
+    public void StorageUpgrade ()
+    {
+        if(GameManager.instance.points >= StorageCost)
+        {
+            au.Play(0);
+            GameManager.instance.maxGB += 4;
+            GameManager.instance.points -= StorageCost;
+        }
+    }
+
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class SpawnEnemy : MonoBehaviour {
+
+    public static SpawnEnemy instance;
+
+    public void Awake()
+    {
+        instance = this;
+    }
+
+    public GameObject[] Files;
+
+    float spawnCounter;
+    public float maxSpawnCounter;
+
+    GameObject fileToSpawn;
+
+    public GameObject[] spawnPoints;
+    Transform SpawnPoint;
+
+    int index;
+
+	// Use this for initialization
+	void Start () {
+		
+	}
+	
+	// Update is called once per frame
+	void Update () {
+
+        spawnCounter -= Time.deltaTime;
+
+        if(spawnCounter <= 0)
+        {
+            SpawnFile();
+        }
+
+	}
+
+    public void SpawnFile ()
+    {
+
+        if(GameManager.instance.Wave < 3f)
+        {
+            index = 0;
+        }
+
+        if (GameManager.instance.Wave >= 3f && GameManager.instance.Wave < 5)
+        {
+            index = Random.Range(0, 2);
+        }
+
+        if (GameManager.instance.Wave >= 5)
+        {
+            index = Random.Range(0, Files.Length);
+        }
+       
+        fileToSpawn = Files[index];
+
+        int spawnIndex = Random.Range(0, spawnPoints.Length);
+        SpawnPoint = spawnPoints[spawnIndex].transform;
+
+        if(GameManager.instance.waveTimer > 0)
+        {
+            Instantiate(fileToSpawn, SpawnPoint.position, SpawnPoint.rotation);
+        }
+        
+
+        spawnCounter = maxSpawnCounter;
+
+    }
+
+}
+
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class TaskManager : MonoBehaviour {
+
+
+    public static TaskManager instance;
+
+    public Transform targetTransform;
+
+    public GameObject Pointer;
+
+    public float maxTimer = 1.2f;
+    float Timer;
+
+    public void Awake()
+    {
+        instance = this;
+    }
+
+
+    private void Start()
+    {
+        Timer = maxTimer;
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        Timer -= Time.deltaTime;
+        FindClosestEnemy();
+
+        if (Timer <= 0 && GameManager.instance.EnemyGO.Length > 0)
+        {
+            Instantiate(Pointer, transform.position, transform.rotation);
+            Timer = maxTimer;
+        }
+    }
+
+    void FindClosestEnemy()
+    {
+        float distanceToClosestEnemy = Mathf.Infinity;
+        FileGameObject closestEnemy = null;
+        FileGameObject[] allEnemies = GameObject.FindObjectsOfType<FileGameObject>();
+
+        foreach (FileGameObject currentEnemy in allEnemies)
+        {
+            float distanceToEnemy = (currentEnemy.transform.position - transform.position).sqrMagnitude;
+            if(distanceToEnemy < distanceToClosestEnemy)
+            {
+                distanceToClosestEnemy = distanceToEnemy;
+                closestEnemy = currentEnemy;
+                targetTransform = currentEnemy.transform;
+            }
+        }
+    }
+}
